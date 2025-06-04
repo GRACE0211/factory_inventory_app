@@ -455,28 +455,28 @@
             this.panel1.Controls.Add(this.labelAfterStock);
             this.panel1.Controls.Add(this.labelCurrentStock);
             this.panel1.Controls.Add(this.label12);
-            this.panel1.Location = new System.Drawing.Point(261, 215);
+            this.panel1.Location = new System.Drawing.Point(276, 215);
             this.panel1.Name = "panel1";
-            this.panel1.Size = new System.Drawing.Size(289, 38);
+            this.panel1.Size = new System.Drawing.Size(274, 38);
             this.panel1.TabIndex = 11;
             // 
             // labelAfterStock
             // 
             this.labelAfterStock.AutoSize = true;
-            this.labelAfterStock.Font = new System.Drawing.Font("微軟正黑體", 11.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(136)));
+            this.labelAfterStock.Font = new System.Drawing.Font("微軟正黑體", 12F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(136)));
             this.labelAfterStock.Location = new System.Drawing.Point(131, 9);
             this.labelAfterStock.Name = "labelAfterStock";
-            this.labelAfterStock.Size = new System.Drawing.Size(17, 19);
+            this.labelAfterStock.Size = new System.Drawing.Size(18, 21);
             this.labelAfterStock.TabIndex = 12;
             this.labelAfterStock.Text = "  ";
             // 
             // labelCurrentStock
             // 
             this.labelCurrentStock.AutoSize = true;
-            this.labelCurrentStock.Font = new System.Drawing.Font("微軟正黑體", 11.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(136)));
+            this.labelCurrentStock.Font = new System.Drawing.Font("微軟正黑體", 12F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(136)));
             this.labelCurrentStock.Location = new System.Drawing.Point(3, 9);
             this.labelCurrentStock.Name = "labelCurrentStock";
-            this.labelCurrentStock.Size = new System.Drawing.Size(17, 19);
+            this.labelCurrentStock.Size = new System.Drawing.Size(18, 21);
             this.labelCurrentStock.TabIndex = 3;
             this.labelCurrentStock.Text = "  ";
             // 
@@ -500,12 +500,13 @@
             this.submitButton.TabIndex = 10;
             this.submitButton.Text = "送出";
             this.submitButton.UseVisualStyleBackColor = false;
+            this.submitButton.Click += new System.EventHandler(this.submitButton_Click);
             // 
             // label10
             // 
             this.label10.AutoSize = true;
             this.label10.Font = new System.Drawing.Font("微軟正黑體", 11.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(136)));
-            this.label10.Location = new System.Drawing.Point(309, 274);
+            this.label10.Location = new System.Drawing.Point(287, 274);
             this.label10.Name = "label10";
             this.label10.Size = new System.Drawing.Size(47, 19);
             this.label10.TabIndex = 9;
@@ -513,9 +514,9 @@
             // 
             // dateTimePicker_trans
             // 
-            this.dateTimePicker_trans.Location = new System.Drawing.Point(362, 270);
+            this.dateTimePicker_trans.Location = new System.Drawing.Point(340, 270);
             this.dateTimePicker_trans.Name = "dateTimePicker_trans";
-            this.dateTimePicker_trans.Size = new System.Drawing.Size(149, 25);
+            this.dateTimePicker_trans.Size = new System.Drawing.Size(210, 25);
             this.dateTimePicker_trans.TabIndex = 8;
             // 
             // textBoxQuantity
@@ -556,6 +557,7 @@
             this.comboBoxType_tab4.Name = "comboBoxType_tab4";
             this.comboBoxType_tab4.Size = new System.Drawing.Size(210, 25);
             this.comboBoxType_tab4.TabIndex = 4;
+            this.comboBoxType_tab4.Text = "全部";
             // 
             // label7
             // 

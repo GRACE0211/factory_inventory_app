@@ -185,30 +185,26 @@ namespace factory_inventory
             string productFilter = products.Count > 0 ? $"prod.name IN ({string.Join(",", products)})" : "1=1";
             string query = $@"
                 SELECT
-                  prod.name as '產品名稱',
-                  s.name as '供應商名稱',
-                  COALESCE(t_sum.sum_q, 0) + COALESCE(p.quantity, 0) AS '庫存數量'
+                  prod.name AS '產品名稱',
+                  s.name AS '供應商名稱',
+                  ps.quantity + COALESCE(SUM(
+                    CASE
+                      WHEN t.transaction_type = 'IN' THEN t.quantity
+                      WHEN t.transaction_type = 'OUT' THEN -t.quantity
+                      ELSE 0
+                    END
+                  ), 0) AS '庫存數量'
                 FROM
-                  (
-                    SELECT
-                      t.product_id,
-                      t.supplier_id,
-                      SUM(CASE WHEN t.transaction_type = 'IN' THEN t.quantity ELSE 0 END)
-                      -
-                      SUM(CASE WHEN t.transaction_type = 'OUT' THEN t.quantity ELSE 0 END) AS sum_q
-                    FROM
-                      transactions t
-                    GROUP BY
-                      t.product_id, t.supplier_id
-                  ) t_sum
-                LEFT JOIN product_suppliers p
-                  ON t_sum.product_id = p.product_id AND t_sum.supplier_id = p.supplier_id
-                LEFT JOIN products prod
-                  ON t_sum.product_id = prod.product_id
-                LEFT JOIN supplier s
-                  ON t_sum.supplier_id = s.supplier_id
+                  product_suppliers ps
+                JOIN products prod ON ps.product_id = prod.product_id
+                JOIN supplier s ON ps.supplier_id = s.supplier_id
+                LEFT JOIN transactions t
+                  ON t.product_id = ps.product_id AND t.supplier_id = ps.supplier_id
                 WHERE
-                  {supplierFilter} AND {productFilter}";
+                  {supplierFilter} AND {productFilter}
+                GROUP BY
+                  ps.product_id, ps.supplier_id, ps.quantity, prod.name, s.name";
+
 
 
             Load_Inventory_Data(query);
@@ -404,24 +400,32 @@ namespace factory_inventory
 
         private int GetCurrentStock(string supplier, string product)
         {
-            // 這個方法可以用來查詢目前庫存數量
             using (MySqlConnection connection = new MySqlConnection(connectionString))
             {
                 try
                 {
                     connection.Open();
                     string query = @"
-                        SELECT COALESCE(SUM(CASE WHEN t.transaction_type = 'IN' THEN t.quantity ELSE 0 END), 0) - 
-                               COALESCE(SUM(CASE WHEN t.transaction_type = 'OUT' THEN t.quantity ELSE 0 END), 0) AS current_stock
-                        FROM transactions t
-                        LEFT JOIN products p ON t.product_id = p.product_id
-                        LEFT JOIN supplier s ON t.supplier_id = s.supplier_id
-                        WHERE s.name = @supplier AND p.name = @product";
+                SELECT 
+                    ps.quantity + COALESCE(SUM(
+                        CASE
+                            WHEN t.transaction_type = 'IN' THEN t.quantity
+                            WHEN t.transaction_type = 'OUT' THEN -t.quantity
+                            ELSE 0
+                        END
+                    ), 0) AS current_stock
+                FROM product_suppliers ps
+                JOIN products p ON ps.product_id = p.product_id
+                JOIN supplier s ON ps.supplier_id = s.supplier_id
+                LEFT JOIN transactions t
+                    ON t.product_id = ps.product_id AND t.supplier_id = ps.supplier_id
+                WHERE s.name = @supplier AND p.name = @product
+                GROUP BY ps.quantity";
                     MySqlCommand command = new MySqlCommand(query, connection);
                     command.Parameters.AddWithValue("@supplier", supplier);
                     command.Parameters.AddWithValue("@product", product);
                     object result = command.ExecuteScalar();
-                    return Convert.ToInt32(result);
+                    return result == DBNull.Value ? 0 : Convert.ToInt32(result);
                 }
                 catch (Exception ex)
                 {
@@ -431,6 +435,8 @@ namespace factory_inventory
             }
         }
 
+
+        // 動態顯示庫存提示
         private void UpdateStockHint()
         {
             // 假設你有 comboBoxSupplier, comboBoxProduct, comboBoxType, textBoxQuantity
@@ -440,26 +446,186 @@ namespace factory_inventory
             int qty = 0;
             int.TryParse(textBoxQuantity.Text, out qty);
 
-            if(supplier == "全部" || product == "全部" || type == "全部" || string.IsNullOrEmpty(supplier) || string.IsNullOrEmpty(product))
+            // 如果還沒選擇供應商或產品，庫存還不會顯示
+            if (supplier == "全部" || product == "全部" || string.IsNullOrEmpty(supplier) || string.IsNullOrEmpty(product))
             {
                 labelCurrentStock.Text = "目前庫存：-";
                 labelAfterStock.Text = "交易後庫存：-";
                 return;
             }
 
+            // 選擇供應商或產品之後就會顯示庫存
             // 查詢目前庫存
-            int currentStock = GetCurrentStock(supplier, product); // 你需要寫這個查詢資料庫的方法
+            int currentStock = GetCurrentStock(supplier, product);
 
-            int afterStock = type == "IN" ? currentStock + qty : currentStock - qty;
+            int afterStock = CalculateAfterStock();
 
             labelCurrentStock.Text = $"目前庫存：{currentStock}";
             labelAfterStock.Text = $"交易後庫存：{afterStock}";
 
-            labelCurrentStock.ForeColor = Color.SeaGreen;
-            labelAfterStock.ForeColor = afterStock < 0 ? Color.Red : Color.IndianRed;
+            labelCurrentStock.ForeColor = currentStock > 80 ? Color.SeaGreen : Color.IndianRed;
+            labelAfterStock.ForeColor = afterStock > 80 ? Color.SeaGreen : Color.IndianRed;
 
-            // 你要 panelHint.Visible = true; （或讓 panelHint 顯示/隱藏）
+            
         }
 
+        private int CalculateAfterStock()
+        {
+            string supplier = comboBoxSupplier_tab4.SelectedItem?.ToString();
+            string product = comboBoxProduct_tab4.SelectedItem?.ToString();
+            int qty = 0;
+            int.TryParse(textBoxQuantity.Text, out qty);
+            if (supplier == "全部" || product == "全部" || string.IsNullOrEmpty(supplier) || string.IsNullOrEmpty(product))
+            {
+                return 0;
+            }
+            // 查詢目前庫存
+            int currentStock = GetCurrentStock(supplier, product);
+            int afterStock = currentStock + (comboBoxType_tab4.SelectedItem.ToString() == "IN" ? qty : -qty);
+            return afterStock;
+        }
+
+        private void submitButton_Click(object sender, EventArgs e)
+        {
+            int afterStock = CalculateAfterStock();
+            string supplier = comboBoxSupplier_tab4.SelectedItem?.ToString();
+            string product = comboBoxProduct_tab4.SelectedItem?.ToString();
+            string type = comboBoxType_tab4.SelectedItem?.ToString();
+            string quantity = textBoxQuantity.Text;
+            DateTime date = dateTimePicker_trans.Value;
+            string detailMsg = 
+                $"確認交易內容: \n\n"+
+                $"供應商: {supplier}\n" +
+                $"產品: {product}\n" +
+                $"類型: {type}\n" +
+                $"數量: {quantity}\n" +
+                $"交易日期: {date}\n\n" +
+                $"確定要進行交易嗎?";
+
+            if (afterStock < 50)
+            {
+                MessageBox.Show($"庫存僅剩{afterStock} (低於50)，無法進行交易!", "警告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+            else if (afterStock >= 50 && afterStock <= 80 && type == "OUT")
+            {
+                DialogResult result = MessageBox.Show($"交易後庫存量為{afterStock}，確定要進行交易?", "提醒", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+                if (result == DialogResult.No)
+                {
+                    return; // 如果使用者選擇否，則不進行交易
+                }
+                else
+                {
+                    DialogResult confirmResult = MessageBox.Show(detailMsg, "確認交易", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
+                    if (confirmResult == DialogResult.Yes)
+                    {
+                        int supplierId = -1, productId = -1;
+                        using (var conn = new MySqlConnection(connectionString))
+                        {
+                            conn.Open();
+
+                            // 查 supplier_id
+                            var cmdSupplier = new MySqlCommand("SELECT supplier_id FROM supplier WHERE name = @name", conn);
+                            cmdSupplier.Parameters.AddWithValue("@name", supplier);
+                            object supIdResult = cmdSupplier.ExecuteScalar();
+                            if (supIdResult != null) supplierId = Convert.ToInt32(supIdResult);
+
+                            // 查 product_id
+                            var cmdProduct = new MySqlCommand("SELECT product_id FROM products WHERE name = @name", conn);
+                            cmdProduct.Parameters.AddWithValue("@name", product);
+                            object prodIdResult = cmdProduct.ExecuteScalar();
+                            if (prodIdResult != null) productId = Convert.ToInt32(prodIdResult);
+
+                            if (supplierId == -1 || productId == -1)
+                            {
+                                MessageBox.Show("查無對應產品或供應商ID");
+                                return;
+                            }
+
+                            // Insert 新交易
+                            var cmdInsert = new MySqlCommand(
+                                @"INSERT INTO transactions (product_id, supplier_id, transaction_type, quantity, transaction_date)
+          VALUES (@pid, @sid, @type, @qty, @date)", conn);
+                            cmdInsert.Parameters.AddWithValue("@pid", productId);
+                            cmdInsert.Parameters.AddWithValue("@sid", supplierId);
+                            cmdInsert.Parameters.AddWithValue("@type", type);
+                            cmdInsert.Parameters.AddWithValue("@qty", quantity);
+                            cmdInsert.Parameters.AddWithValue("@date", date);
+
+                            int rows = cmdInsert.ExecuteNonQuery();
+                            if (rows > 0)
+                                MessageBox.Show("交易新增成功!","成功",MessageBoxButtons.OK,MessageBoxIcon.Information);
+                            else
+                                MessageBox.Show("交易新增失敗，請再試一次!", "失敗", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                            }
+
+                    }
+                    else
+                    {
+                        return; // 二次確認，如果使用者選擇否，則不進行交易
+                    }
+                }
+            }
+            else
+            {
+                DialogResult result = MessageBox.Show("確定進行交易?", "確認", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+                if (result == DialogResult.No)
+                {
+                    return; // 如果使用者選擇否，則不進行交易
+                }
+                else
+                {
+                    DialogResult confirmResult = MessageBox.Show(detailMsg, "確認交易", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
+                    if (confirmResult == DialogResult.Yes)
+                    {
+                        int supplierId = -1, productId = -1;
+                        using (var conn = new MySqlConnection(connectionString))
+                        {
+                            conn.Open();
+
+                            // 查 supplier_id
+                            var cmdSupplier = new MySqlCommand("SELECT supplier_id FROM supplier WHERE name = @name", conn);
+                            cmdSupplier.Parameters.AddWithValue("@name", supplier);
+                            object supIdResult = cmdSupplier.ExecuteScalar();
+                            if (supIdResult != null) supplierId = Convert.ToInt32(supIdResult);
+
+                            // 查 product_id
+                            var cmdProduct = new MySqlCommand("SELECT product_id FROM products WHERE name = @name", conn);
+                            cmdProduct.Parameters.AddWithValue("@name", product);
+                            object prodIdResult = cmdProduct.ExecuteScalar();
+                            if (prodIdResult != null) productId = Convert.ToInt32(prodIdResult);
+
+                            if (supplierId == -1 || productId == -1)
+                            {
+                                MessageBox.Show("查無對應產品或供應商ID");
+                                return;
+                            }
+
+                            // Insert 新交易
+                            var cmdInsert = new MySqlCommand(
+                                @"INSERT INTO transactions (product_id, supplier_id, transaction_type, quantity, transaction_date)
+          VALUES (@pid, @sid, @type, @qty, @date)", conn);
+                            cmdInsert.Parameters.AddWithValue("@pid", productId);
+                            cmdInsert.Parameters.AddWithValue("@sid", supplierId);
+                            cmdInsert.Parameters.AddWithValue("@type", type);
+                            cmdInsert.Parameters.AddWithValue("@qty", quantity);
+                            cmdInsert.Parameters.AddWithValue("@date", date);
+
+                            int rows = cmdInsert.ExecuteNonQuery();
+                            if (rows > 0)
+                                MessageBox.Show("交易新增成功!", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                            else
+                                MessageBox.Show("交易新增失敗，請再試一次!", "失敗", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        }
+
+                    }
+                    else
+                    {
+                        return; // 二次確認，如果使用者選擇否，則不進行交易
+                    }
+                }
+            }
+        }
+
+        
     }
 }
