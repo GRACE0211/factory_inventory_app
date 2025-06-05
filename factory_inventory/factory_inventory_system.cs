@@ -20,6 +20,8 @@ namespace factory_inventory
         {
             InitializeComponent();
 
+            // 切換不同分頁不用重新載入，所以寫在這裡
+            // 只要選單內容有變動，就要執行 UpdateStockHint()
             this.comboBoxSupplier_tab4.SelectedIndexChanged += (sender, e) => UpdateStockHint();
             this.comboBoxProduct_tab4.SelectedIndexChanged += (sender, e) => UpdateStockHint();
             this.comboBoxType_tab4.SelectedIndexChanged += (sender, e) => UpdateStockHint();
@@ -31,31 +33,34 @@ namespace factory_inventory
         // 根據不同的tabPage頁面,載入不同的資料表格
         private void tabControl1_SelectedIndexChanged(object sender, EventArgs e)
         {
-            // tabPage2頁面一載入時，載入資料庫中的產品和供應商資料
+            // tabPage2頁面：“庫存” 一載入時，載入庫存表
             if (tabControl1.SelectedTab == tabPage2)
             {
                 ApplyFilter_inventoryPage();
             }
 
-            // tabPage3頁面一載入時，載入下拉式選單的選項以及庫存異動表格
+            // tabPage3：“交易資料” 頁面一載入時，載入下拉式選單的選項以及庫存異動表格
             else if (tabControl1.SelectedTab == tabPage3)
             {
                 LoadSupplierComboBox(comboBoxSupplier_tab3);
                 LoadProductComboBox(comboBoxProduct_tab3);
-                dateTimePickerStart.Value = new DateTime(2024,12,1);
+                dateTimePickerStart.Value = new DateTime(2024, 12, 1);
                 dateTimePickerEnd.MaxDate = DateTime.Today; // 設定日期選擇器的最大日期為今天
                 comboBoxTransactionType.SelectedIndex = 0; // 預設選擇"全部"
                 comboBoxProduct_tab3.SelectedIndex = 0; // 預設選擇"全部"
                 comboBoxSupplier_tab3.SelectedIndex = 0; // 預設選擇"全部"
                 ApplyFilter_transactionPage();
             }
-            else if(tabControl1.SelectedTab == tabPage4)
+
+            // tabPage4：“新增交易” 頁面載入時載入下拉式選單的選項
+            else if (tabControl1.SelectedTab == tabPage4)
             {
                 LoadSupplierComboBox(comboBoxSupplier_tab4);
                 LoadProductComboBox(comboBoxProduct_tab4);
             }
         }
 
+        // tabPage1: “基本資料” 根據不同按鈕，載入資料庫中的產品和供應商資料
         // 顯示產品表格
         private void btnShowProducts_Click(object sender, EventArgs e)
         {
@@ -111,9 +116,9 @@ namespace factory_inventory
             }
         }
 
-        
 
-        // 表格的條件格式化>庫存低於80時，背景色變為淺紅色 
+
+        // 表格的條件格式化 -> 庫存低於80時，背景色變為淺紅色 
         private void dataGridView_DataBindingComplete(object sender, DataGridViewBindingCompleteEventArgs e)
         {
             foreach (DataGridViewRow row in dataGridView2.Rows)
@@ -125,7 +130,7 @@ namespace factory_inventory
                 if (cellValue != null && int.TryParse(cellValue.ToString(), out qty))
                 {
                     if (qty <= 80)
-                        row.DefaultCellStyle.BackColor = Color.LightCoral;
+                        row.DefaultCellStyle.BackColor = Color.FromArgb(230,169,169);
                     else
                         row.DefaultCellStyle.BackColor = Color.White;
                 }
@@ -136,52 +141,54 @@ namespace factory_inventory
         private void ApplyFilter_inventoryPage()
         {
             List<string> suppliers = new List<string>();
-            if(supplierA.Checked)
+            // 若有勾選就加入suppliers陣列
+            if (supplierA.Checked)
             {
                 suppliers.Add("'A'");
             }
-            if(supplierB.Checked)
+            if (supplierB.Checked)
             {
                 suppliers.Add("'B'");
             }
-            if(supplierC.Checked)
+            if (supplierC.Checked)
             {
                 suppliers.Add("'C'");
             }
-            if(supplierD.Checked)
+            if (supplierD.Checked)
             {
                 suppliers.Add("'D'");
             }
-            if(supplierE.Checked)
+            if (supplierE.Checked)
             {
                 suppliers.Add("'E'");
             }
 
+            // 若有勾選就加入products陣列
             List<string> products = new List<string>();
-            if(toothbrush.Checked)
+            if (toothbrush.Checked)
             {
                 products.Add("'toothbrush'");
-            }   
-            if(toothpaste.Checked)
+            }
+            if (toothpaste.Checked)
             {
                 products.Add("'toothpaste'");
             }
-            if(shampoo.Checked)
+            if (shampoo.Checked)
             {
                 products.Add("'shampoo'");
-            }   
-            if(shaver.Checked)
+            }
+            if (shaver.Checked)
             {
                 products.Add("'shaver'");
             }
-            if(comb.Checked)
+            if (comb.Checked)
             {
                 products.Add("'comb'");
             }
 
             // 如果有選擇條件，就會產生s.name IN('A','B'...)
             // 如果沒有選擇供應商或產品，則使用1=1作為條件，表示不過濾
-            string supplierFilter = suppliers.Count > 0 ? $"s.name IN ({string.Join(",",suppliers)})" : "1=1";
+            string supplierFilter = suppliers.Count > 0 ? $"s.name IN ({string.Join(",", suppliers)})" : "1=1";
             string productFilter = products.Count > 0 ? $"prod.name IN ({string.Join(",", products)})" : "1=1";
             string query = $@"
                 SELECT
@@ -210,7 +217,7 @@ namespace factory_inventory
             Load_Inventory_Data(query);
         }
 
-        
+
 
         private void supplierA_CheckedChanged(object sender, EventArgs e)
         {
@@ -366,7 +373,7 @@ namespace factory_inventory
                     MessageBox.Show("Error: " + ex.Message);
                 }
             }
-            }
+        }
 
         private void comboBoxSupplier_SelectedIndexChanged(object sender, EventArgs e)
         {
@@ -463,10 +470,10 @@ namespace factory_inventory
             labelCurrentStock.Text = $"目前庫存：{currentStock}";
             labelAfterStock.Text = $"交易後庫存：{afterStock}";
 
-            labelCurrentStock.ForeColor = currentStock > 80 ? Color.SeaGreen : Color.IndianRed;
-            labelAfterStock.ForeColor = afterStock > 80 ? Color.SeaGreen : Color.IndianRed;
+            labelCurrentStock.ForeColor = currentStock > 80 ? Color.FromArgb(1,105,74) : Color.FromArgb(176, 28, 28);
+            labelAfterStock.ForeColor = afterStock > 80 ? Color.FromArgb(1, 105, 74) : Color.FromArgb(176, 28, 28);
 
-            
+
         }
 
         private int CalculateAfterStock()
@@ -493,8 +500,8 @@ namespace factory_inventory
             string type = comboBoxType_tab4.SelectedItem?.ToString();
             string quantity = textBoxQuantity.Text;
             DateTime date = dateTimePicker_trans.Value;
-            string detailMsg = 
-                $"確認交易內容: \n\n"+
+            string detailMsg =
+                $"確認交易內容: \n\n" +
                 $"供應商: {supplier}\n" +
                 $"產品: {product}\n" +
                 $"類型: {type}\n" +
@@ -553,10 +560,10 @@ namespace factory_inventory
 
                             int rows = cmdInsert.ExecuteNonQuery();
                             if (rows > 0)
-                                MessageBox.Show("交易新增成功!","成功",MessageBoxButtons.OK,MessageBoxIcon.Information);
+                                MessageBox.Show("交易新增成功!", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
                             else
                                 MessageBox.Show("交易新增失敗，請再試一次!", "失敗", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                            }
+                        }
 
                     }
                     else
@@ -626,6 +633,6 @@ namespace factory_inventory
             }
         }
 
-        
+
     }
 }
